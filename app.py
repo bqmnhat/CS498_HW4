@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from neo4j import GraphDatabase
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, avg, count, round as spark_round
+from pyspark.sql.functions import col, avg, count
 
 app = Flask(__name__)
 
