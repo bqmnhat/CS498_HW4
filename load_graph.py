@@ -1,6 +1,8 @@
 import pandas as pd
 from neo4j import GraphDatabase
 
+EXTERNAL_IP = "34.173.172.171" 
+
 class TaxiLoader:
     def __init__(self, uri, user, password):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
@@ -10,39 +12,34 @@ class TaxiLoader:
 
     def load_data(self, csv_file):
         df = pd.read_csv(csv_file)
+        data = df.to_dict('records')
+
         with self.driver.session() as session:
-            session.run("CREATE CONSTRAINT FOR (d:Driver) REQUIRE d.driver_id IS UNIQUE IF NOT EXISTS")
-            session.run("CREATE CONSTRAINT FOR (c:Company) REQUIRE c.name IS UNIQUE IF NOT EXISTS")
-            session.run("CREATE CONSTRAINT FOR (a:Area) REQUIRE a.area_id IS UNIQUE IF NOT EXISTS")
+            # Constraints
+            print("Ensuring constraints exist...")
+            session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (d:Driver) REQUIRE d.driver_id IS UNIQUE")
+            session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:Company) REQUIRE c.name IS UNIQUE")
+            session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (a:Area) REQUIRE a.area_id IS UNIQUE")
 
-            for _, row in df.iterrows():
-                session.execute_write(self._create_graph_elements, row)
-
-    @staticmethod
-    def _create_graph_elements(tx, row):
-        query = """
-            MERGE (d:Driver {driver_id: $driver_id})
-            MERGE (c:Company {name: $company})
-            MERGE (a:Area {area_id: $area_id})
+            # Batch Loading
+            query = """
+            UNWIND $rows AS row
+            MERGE (d:Driver {driver_id: toString(row.driver_id)})
+            MERGE (c:Company {name: row.company})
+            MERGE (a:Area {area_id: toInteger(row.dropoff_area)})
             MERGE (d)-[:WORKS_FOR]->(c)
             CREATE (d)-[:TRIP {
-                trip_id: $trip_id,
-                fare: $fare,
-                trip_seconds: $trip_seconds
+                trip_id: row.trip_id,
+                fare: toFloat(row.fare),
+                trip_seconds: toInteger(row.trip_seconds)
             }]->(a)
-        """
-        tx.run(
-                query, 
-                driver_id=str(row['driver_id']),
-                company=row['company'],
-                area_id=int(row['dropoff_area']),
-                trip_id=row['trip_id'],
-                fare=float(row['fare']),
-                trip_seconds=int(row['trip_seconds'])
-            )
+            """
+            print(f"Starting batch upload of {len(data)} rows...")
+            session.run(query, rows=data)
+            print("Upload completed successfully!")
 
 if __name__ == "__main__":
-    loader = TaxiLoader("bolt://34.173.172.171:7687", "neo4j", "123456789")
+    loader = TaxiLoader(f"bolt://{EXTERNAL_IP}:7687", "neo4j", "123456789")
     loader.load_data("taxi_trips_clean.csv")
     loader.close()
-    print("Graph loading complete.")
+    print("Finished!")
