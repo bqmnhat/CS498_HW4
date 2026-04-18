@@ -42,7 +42,7 @@ class TaxiLoader:
             )
 
 if __name__ == "__main__":
-    loader = TaxiLoader("bolt://localhost:7687", "neo4j", "YOUR_PASSWORD")
+    loader = TaxiLoader("bolt://34.173.172.171:7687", "neo4j", "123456789")
     loader.load_data("taxi_trips_clean.csv")
     loader.close()
     print("Graph loading complete.")
