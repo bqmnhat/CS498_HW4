@@ -116,18 +116,20 @@ def company_compare():
     df.createOrReplaceTempView("compare_trips")
     
     results = spark.sql(f"""
-        SELECT company, COUNT(*) as trip_count, ROUND(AVG(fare), 2) as avg_fare,
+        SELECT company, 
+               COUNT(*) as trip_count, 
+               ROUND(AVG(fare), 2) as avg_fare,
                ROUND(AVG(fare_per_minute), 2) as avg_fare_per_minute,
-               ROUND(AVG(trip_seconds), 0) as avg_trip_seconds
+               CAST(ROUND(AVG(trip_seconds), 0) AS INT) as avg_trip_seconds
         FROM compare_trips
-        WHERE company IN ('{c1}', '{c2}')
+        WHERE company IN ("{c1}", "{c2}")
         GROUP BY company
     """).collect()
     
-    if len(results) < 1:
+    if len(results) < 2:
         return jsonify({"error": "one or more companies not found"}), 404
         
-    return jsonify({"comparison": [dict(r) for r in results]})
+    return jsonify({"comparison": [r.asDict() for r in results]})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
