@@ -1,0 +1,19 @@
+Q1: 
+FoundationDB separates separates its architecture into a Transaction Management System and a Storage System to gain Fast and Cheap Recovery. When the server is down, FDB can recover by simply discarding the old Transaction Management System and create a new one, avoiding expensive log replays.
+The Transaction Management System handles the lifecycle of a transaction, while the Storage System is where the actual data resides for long-term access.
+
+Q2: 
+During a write transaction in FDB, the Resolver is responsible for detecting read-write conflicts between concurrent transactions. This check occurs right after the transaction has been assigned a version and before it is long-term written to the Log System.
+
+Q3:
+The primary purpose of the read version is to provide a consistent point-in-time view (snapshot) of the entire database. When a transaction starts, the Proxy asks the Sequencer for a read version. From that moment on, every read the transaction performs (from any Storage Server) will return the value that was current as of that specific version.
+
+The read version allows FDB to provide Strict Serializability.
+
+Q4: 
+The difference between a standard read and a snapshot read lies in how FDB tracks conflicts using a Read Set:
+- For standard read, every key read is added to the transaction's Read Set. During the commit phase, the Resolver checks this set. If any key was changed, the Resolver will trigger an abort. This ensures Strict Serializability. We will choose to use Standard Reads when the logic of our write depends on the value we just read (e.g. Bank Transfer).
+- For snapshot read, it does not add the read keys to the Read Set. Therefore, these reads provide a consistent view of the database as of the transaction's Read Version. We will choose to use Snapshot Reads in high-traffic areas where Strict Serializability is not required.
+
+Q5:
+The reason for FDB cheap recovery is because of decoupling the stateless Transaction Management System from the Storage System. Because the data plane is decoupled, recovery is a fast metadata operation that simply recruits a new Transaction Management System and identifies a Recovery Version from the Log System. This allows the cluster to become available in seconds, bypassing the linear log replay required by ARIES-based systems.
